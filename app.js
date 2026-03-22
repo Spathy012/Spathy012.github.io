@@ -86,6 +86,8 @@ Paper 2 - Section B
 
 const PLACEHOLDER_OUTPUT =
   "Your generated IB-style practice exam will appear here.";
+const GENERATOR_DESCRIPTION =
+  "Local pattern-learning engine (keyword + command term extraction)";
 
 const cleanText = (text) => text.replace(/\s+/g, " ").trim();
 
@@ -251,9 +253,7 @@ const generateExam = ({ subject, level, duration, questionCount, rawText }) => {
   examLines.push(`Time allowed: ${duration} minutes`);
   examLines.push(`Generated from ${sentences.length} example sentences`);
   examLines.push(`Command terms: ${commandTermSummary}`);
-  examLines.push(
-    "Generator: Local pattern-learning engine (keyword + command term extraction)",
-  );
+  examLines.push(`Generator: ${GENERATOR_DESCRIPTION}`);
 
   const addSection = (title, startIndex, count, marksRange) => {
     if (count <= 0) {
