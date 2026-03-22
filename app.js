@@ -1,405 +1,387 @@
-const pastPapersInput = document.getElementById("past-papers");
-const examForm = document.getElementById("exam-form");
-const examOutput = document.getElementById("exam-output");
-const fileInput = document.getElementById("paper-files");
-const copyButton = document.getElementById("copy-exam");
-const clearButton = document.getElementById("clear-exam");
-const loadSampleButton = document.getElementById("load-sample");
+/* ─── ib-shafted.me · app.js ────────────────────────────────
+   Uses the Anthropic Messages API (claude-sonnet-4-20250514)
+   to generate IB-style practice exams with markschemes.
+   API key is stored in sessionStorage only.
+──────────────────────────────────────────────────────────── */
 
-const COMMAND_TERMS = [
-  "Define",
-  "Explain",
-  "Describe",
-  "Outline",
-  "Analyse",
-  "Compare",
-  "Evaluate",
-  "Discuss",
-  "To what extent",
-];
+'use strict';
 
-const STOP_WORDS = new Set([
-  "the",
-  "and",
-  "for",
-  "with",
-  "that",
-  "this",
-  "from",
-  "your",
-  "their",
-  "which",
-  "about",
-  "using",
-  "such",
-  "have",
-  "has",
-  "were",
-  "was",
-  "are",
-  "is",
-  "will",
-  "shall",
-  "could",
-  "would",
-  "should",
-  "over",
-  "under",
-  "between",
-  "within",
-  "when",
-  "where",
-  "while",
-  "there",
-  "these",
-  "those",
-  "they",
-  "them",
-  "also",
-  "only",
-  "than",
-  "then",
-  "been",
-  "being",
-  "past",
-  "paper",
-  "papers",
-  "section",
-  "question",
-]);
+// ── State ──────────────────────────────────────────────────
+let uploadedFiles = []; // { name, content }
+let apiKey = sessionStorage.getItem('ib_api_key') || '';
 
-const SAMPLE_TEXT = `Paper 1 - Section A
-1. Define the term homeostasis.
-2. Describe two ways enzymes control reaction rates.
+// ── DOM refs ───────────────────────────────────────────────
+const apiNotice        = document.getElementById('apiNotice');
+const apiKeyRow        = document.getElementById('apiKeyRow');
+const apiKeyInput      = document.getElementById('apiKey');
+const showKeyInputBtn  = document.getElementById('showKeyInput');
+const saveKeyBtn       = document.getElementById('saveKey');
+const closeNoticeBtn   = document.getElementById('closeNotice');
 
-Paper 1 - Section B
-3. Explain how fiscal policy can influence aggregate demand.
-4. Outline the steps of the scientific method in environmental systems.
+const uploadZone       = document.getElementById('uploadZone');
+const fileInput        = document.getElementById('fileInput');
+const fileList         = document.getElementById('fileList');
+const pasteArea        = document.getElementById('pasteArea');
+const loadSampleBtn    = document.getElementById('loadSample');
+const clearAllBtn      = document.getElementById('clearAll');
 
-Paper 2 - Section A
-5. Analyse the impact of urbanisation on biodiversity.
-6. Compare two approaches to ethical decision-making in business management.
+const subjectSel       = document.getElementById('subject');
+const levelSel         = document.getElementById('level');
+const paperSel         = document.getElementById('paper');
+const qCountInput      = document.getElementById('questionCount');
+const durationInput    = document.getElementById('duration');
+const difficultySel    = document.getElementById('difficulty');
+const includeMS        = document.getElementById('includeMarkscheme');
+const includeCT        = document.getElementById('includeCommandTerms');
 
-Paper 2 - Section B
-7. Evaluate the reliability of the data presented in the case study.
-8. Discuss the role of language in shaping cultural identity.`;
+const generateBtn      = document.getElementById('generateBtn');
+const generateLabel    = document.getElementById('generateLabel');
+const generateIcon     = document.getElementById('generateIcon');
 
-const PLACEHOLDER_OUTPUT =
-  "Your generated IB-style practice exam will appear here.";
-const GENERATOR_DESCRIPTION =
-  "Local pattern-learning engine (keyword + command term extraction)";
+const outputWrap       = document.getElementById('outputWrap');
+const placeholder      = document.getElementById('placeholder');
+const outputEl         = document.getElementById('output');
+const streamCursor     = document.getElementById('streamCursor');
+const outputActions    = document.getElementById('outputActions');
+const copyBtn          = document.getElementById('copyBtn');
+const printBtn         = document.getElementById('printBtn');
+const clearOutputBtn   = document.getElementById('clearOutput');
 
-const cleanText = (text) => text.replace(/\s+/g, " ").trim();
+// ── API key flow ───────────────────────────────────────────
+if (apiKey) hideApiNotice();
 
-const splitIntoSentences = (text) => {
-  const cleaned = cleanText(text);
-  if (!cleaned) {
-    return [];
+showKeyInputBtn?.addEventListener('click', () => {
+  apiKeyRow.style.display = 'flex';
+  apiKeyInput.focus();
+});
+
+saveKeyBtn?.addEventListener('click', () => {
+  const k = apiKeyInput.value.trim();
+  if (!k.startsWith('sk-ant-')) {
+    alert('That doesn\'t look like a valid Anthropic key (should start with sk-ant-)');
+    return;
   }
-  const matches = cleaned.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
-  return matches
-    .map((sentence) => sentence.trim())
-    .filter((sentence) => sentence.length > 40);
-};
+  apiKey = k;
+  sessionStorage.setItem('ib_api_key', k);
+  apiKeyInput.value = '';
+  apiKeyRow.style.display = 'none';
+  hideApiNotice();
+});
 
-const tokenize = (text) =>
-  (text.toLowerCase().match(/[a-z][a-z']+/g) || []).filter(
-    (word) => !STOP_WORDS.has(word) && word.length > 3,
-  );
+closeNoticeBtn?.addEventListener('click', hideApiNotice);
 
-const buildFrequencyMap = (tokens) =>
-  tokens.reduce((map, token) => {
-    map[token] = (map[token] || 0) + 1;
-    return map;
-  }, {});
+function hideApiNotice() {
+  if (apiNotice) apiNotice.style.display = 'none';
+}
 
-const hashString = (value) => {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash >>> 0;
-};
+// ── File upload ────────────────────────────────────────────
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
 
-const mulberry32 = (seed) => {
-  let value = seed;
-  return () => {
-    value += 0x6d2b79f5;
-    let t = value;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-};
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
 
-const pickRandom = (items, rng) => items[Math.floor(rng() * items.length)];
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
 
-const pickKeywords = (sentence, frequencyMap) => {
-  const words = tokenize(sentence);
-  const uniqueWords = [...new Set(words)];
-  if (uniqueWords.length > 0) {
-    return uniqueWords.slice(0, 2);
-  }
-  const fallback = Object.entries(frequencyMap)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 2)
-    .map(([word]) => word);
-  return fallback.length ? fallback : ["the topic"];
-};
-
-const clipSentence = (sentence, maxLength = 150) => {
-  if (sentence.length <= maxLength) {
-    return sentence;
-  }
-  const clipped = sentence.slice(0, maxLength).trim();
-  return `${clipped}…`;
-};
-
-const buildPrompt = ({ term, focus, comparison, subject, extract }) => {
-  switch (term) {
-    case "Define":
-      return `Define ${focus} as used in the extract.`;
-    case "Explain":
-      return `Explain why ${focus} matters in ${subject}.`;
-    case "Describe":
-      return `Describe ${focus} with reference to the extract.`;
-    case "Outline":
-      return `Outline two key points about ${focus}.`;
-    case "Analyse":
-      return `Analyse the extract, focusing on ${focus}.`;
-    case "Compare":
-      return `Compare ${focus} with ${comparison} in relation to ${subject}.`;
-    case "Evaluate":
-      return `Evaluate the claim made in the extract about ${focus}.`;
-    case "Discuss":
-      return `Discuss how ${focus} influences outcomes in ${subject}.`;
-    case "To what extent":
-      return `To what extent does ${focus} apply to the scenario in the extract?`;
-    default:
-      return `Explain ${focus} using evidence from the extract.`;
-  }
-};
-
-const createQuestion = ({
-  index,
-  sentence,
-  subject,
-  term,
-  marksRange,
-  frequencyMap,
-  rng,
-}) => {
-  const keywords = pickKeywords(sentence, frequencyMap);
-  const focus = keywords[0] || "the concept";
-  const comparison = keywords[1] || "a contrasting idea";
-  const marks = pickRandom(marksRange, rng);
-  const prompt = buildPrompt({
-    term,
-    focus,
-    comparison,
-    subject,
-    extract: sentence,
-  });
-  return `${index}. [${marks} marks] ${prompt}\n   Source extract: ${clipSentence(
-    sentence,
-  )}`;
-};
-
-const generateExam = ({ subject, level, duration, questionCount, rawText }) => {
-  const sentences = splitIntoSentences(rawText);
-  if (sentences.length === 0) {
-    return {
-      success: false,
-      message:
-        "Please paste at least a few sentences from past papers so the generator can build IB-style questions.",
+function handleFiles(files) {
+  [...files].forEach(f => {
+    if (!f.name.endsWith('.txt')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      uploadedFiles.push({ name: f.name, content: e.target.result });
+      renderFileChips();
     };
-  }
+    reader.readAsText(f);
+  });
+  fileInput.value = '';
+}
 
-  const frequencyMap = buildFrequencyMap(tokenize(rawText));
-  const seed = hashString(`${subject}-${level}-${rawText.length}`);
-  const rng = mulberry32(seed);
-  const questions = [];
-  const usedIndices = new Set();
-  const safeQuestionCount = Math.min(Math.max(questionCount, 4), 20);
-  const paperOneCount = Math.min(
-    safeQuestionCount,
-    Math.max(4, Math.round(safeQuestionCount * 0.6)),
-  );
-  const paperTwoCount = Math.max(0, safeQuestionCount - paperOneCount);
+function renderFileChips() {
+  fileList.innerHTML = '';
+  uploadedFiles.forEach((f, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'file-chip';
+    chip.innerHTML = `<span>📄 ${escHtml(f.name)}</span><button aria-label="Remove ${escHtml(f.name)}" data-idx="${i}">✕</button>`;
+    chip.querySelector('button').addEventListener('click', () => {
+      uploadedFiles.splice(i, 1);
+      renderFileChips();
+    });
+    fileList.appendChild(chip);
+  });
+}
 
-  for (let i = 0; i < safeQuestionCount; i += 1) {
-    let attempts = 0;
-    let sentenceIndex = Math.floor(rng() * sentences.length);
-    while (usedIndices.has(sentenceIndex) && attempts < sentences.length) {
-      sentenceIndex = Math.floor(rng() * sentences.length);
-      attempts += 1;
-    }
-    usedIndices.add(sentenceIndex);
-    questions.push(sentences[sentenceIndex]);
-  }
+// ── Sample material ────────────────────────────────────────
+loadSampleBtn.addEventListener('click', () => {
+  pasteArea.value = SAMPLE_TEXT;
+});
 
-  const commandTermMix = Array.from({ length: safeQuestionCount }, () =>
-    pickRandom(COMMAND_TERMS, rng),
-  );
-  const commandTermSummary = [...new Set(commandTermMix)]
-    .slice(0, 6)
-    .join(", ");
+clearAllBtn.addEventListener('click', () => {
+  pasteArea.value = '';
+  uploadedFiles = [];
+  renderFileChips();
+});
 
-  const examLines = [];
-  examLines.push("IB Practice Exam (Draft)");
-  examLines.push(`Subject: ${subject}`);
-  examLines.push(`Level: ${level}`);
-  examLines.push(`Time allowed: ${duration} minutes`);
-  examLines.push(`Generated from ${sentences.length} example sentences`);
-  examLines.push(`Command terms: ${commandTermSummary}`);
-  examLines.push(`Generator: ${GENERATOR_DESCRIPTION}`);
+// ── Steppers ───────────────────────────────────────────────
+document.getElementById('decQ').addEventListener('click', () => stepInput(qCountInput, -1));
+document.getElementById('incQ').addEventListener('click', () => stepInput(qCountInput,  1));
+document.getElementById('decD').addEventListener('click', () => stepInput(durationInput, -5));
+document.getElementById('incD').addEventListener('click', () => stepInput(durationInput,  5));
 
-  const addSection = (title, startIndex, count, marksRange) => {
-    if (count <= 0) {
-      return;
-    }
-    examLines.push("");
-    examLines.push(title);
-    examLines.push("Answer all questions.");
-    for (let i = 0; i < count; i += 1) {
-      const questionIndex = startIndex + i + 1;
-      const term =
-        commandTermMix[questionIndex - 1] || pickRandom(COMMAND_TERMS, rng);
-      const sentence = questions[questionIndex - 1] || questions[0];
-      examLines.push(
-        createQuestion({
-          index: questionIndex,
-          sentence,
-          subject,
-          term,
-          marksRange,
-          frequencyMap,
-          rng,
-        }),
-      );
-    }
-  };
+function stepInput(el, delta) {
+  const v = parseFloat(el.value) + delta;
+  const min = parseFloat(el.min);
+  const max = parseFloat(el.max);
+  if (!isNaN(min) && v < min) return;
+  if (!isNaN(max) && v > max) return;
+  el.value = v;
+}
 
-  addSection("Paper 1 — Short-answer", 0, paperOneCount, [2, 4, 6]);
-  addSection(
-    "Paper 2 — Structured response",
-    paperOneCount,
-    paperTwoCount,
-    [8, 10, 12],
-  );
+// ── Generate ───────────────────────────────────────────────
+generateBtn.addEventListener('click', runGenerate);
 
-  examLines.push("");
-  examLines.push("Examiner tips:");
-  examLines.push(
-    "- Use IB command terms and reference evidence from the extracts provided.",
-  );
-  examLines.push("- Allocate time based on mark values.");
-
-  return { success: true, message: examLines.join("\n") };
-};
-
-const setOutput = (message) => {
-  examOutput.textContent = message;
-};
-
-const appendFilesToTextarea = async (files) => {
-  const contents = await Promise.all(
-    files.map(
-      (file) =>
-        new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => resolve("");
-          reader.readAsText(file);
-        }),
-    ),
-  );
-  const cleanedContents = contents.filter(Boolean).join("\n\n---\n\n");
-  pastPapersInput.value = [pastPapersInput.value, cleanedContents]
-    .filter(Boolean)
-    .join("\n\n---\n\n");
-};
-
-fileInput.addEventListener("change", (event) => {
-  const files = [...event.target.files];
-  if (files.length === 0) {
+async function runGenerate() {
+  if (!apiKey) {
+    apiKeyRow.style.display = 'flex';
+    apiNotice.style.display = 'flex';
+    apiKeyInput.focus();
     return;
   }
-  appendFilesToTextarea(files);
-});
 
-loadSampleButton.addEventListener("click", () => {
-  pastPapersInput.value = SAMPLE_TEXT;
-});
+  const subject    = subjectSel.value;
+  const level      = levelSel.value;
+  const paper      = paperSel.value;
+  const qCount     = parseInt(qCountInput.value) || 5;
+  const duration   = parseInt(durationInput.value) || 60;
+  const difficulty = difficultySel.value;
+  const withMS     = includeMS.checked;
+  const withCT     = includeCT.checked;
 
-examForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const subject = document.getElementById("subject").value.trim();
-  const level = document.getElementById("level").value;
-  const durationValue = Number(
-    document.getElementById("duration").value || 90,
-  );
-  const questionCountValue = Number(
-    document.getElementById("question-count").value || 10,
-  );
+  // Collect source material
+  const pasteParts = pasteArea.value.trim();
+  const fileParts  = uploadedFiles.map(f => `[File: ${f.name}]\n${f.content}`).join('\n\n---\n\n');
+  const sourceMaterial = [pasteParts, fileParts].filter(Boolean).join('\n\n---\n\n').trim();
 
-  const result = generateExam({
-    subject: subject || "your subject",
-    level,
-    duration: Number.isNaN(durationValue) ? 90 : durationValue,
-    questionCount: Number.isNaN(questionCountValue) ? 10 : questionCountValue,
-    rawText: pastPapersInput.value,
+  setGenerating(true);
+  showOutput('');
+
+  try {
+    await streamExam({ subject, level, paper, qCount, duration, difficulty, withMS, withCT, sourceMaterial });
+  } catch (err) {
+    console.error(err);
+    appendOutput(`\n\n⚠ Error: ${err.message}`);
+  } finally {
+    setGenerating(false);
+    outputActions.style.display = 'flex';
+    streamCursor.hidden = true;
+  }
+}
+
+// ── Claude API (streaming) ─────────────────────────────────
+async function streamExam({ subject, level, paper, qCount, duration, difficulty, withMS, withCT, sourceMaterial }) {
+  const prompt = buildPrompt({ subject, level, paper, qCount, duration, difficulty, withMS, withCT, sourceMaterial });
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'output-128k-2025-02-19',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      stream: true,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+    }),
   });
 
-  if (!result.success) {
-    setOutput(result.message);
-    return;
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: { message: resp.statusText } }));
+    const msg = err?.error?.message || resp.statusText;
+    if (resp.status === 401) throw new Error('Invalid API key. Please re-enter your Anthropic key.');
+    throw new Error(msg);
   }
 
-  setOutput(result.message);
-});
+  // Read SSE stream
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
 
-const copyToClipboardFallback = (text) => {
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  document.body.appendChild(textarea);
-  textarea.select();
-  const success = document.execCommand("copy");
-  document.body.removeChild(textarea);
-  return success;
-};
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
 
-const showCopySuccess = () => {
-  copyButton.textContent = "Copied!";
-  setTimeout(() => {
-    copyButton.textContent = "Copy exam";
-  }, 1500);
-};
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop(); // keep incomplete line
 
-copyButton.addEventListener("click", () => {
-  const text = examOutput.textContent.trim();
-  if (!text || text === PLACEHOLDER_OUTPUT) {
-    return;
-  }
-  if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(text).then(showCopySuccess).catch(() => {
-      const success = copyToClipboardFallback(text);
-      if (success) {
-        showCopySuccess();
-      }
-    });
-  } else {
-    const success = copyToClipboardFallback(text);
-    if (success) {
-      showCopySuccess();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') return;
+      try {
+        const evt = JSON.parse(raw);
+        if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+          appendOutput(evt.delta.text);
+        }
+      } catch { /* skip malformed */ }
     }
   }
+}
+
+// ── Prompt construction ────────────────────────────────────
+function buildPrompt({ subject, level, paper, qCount, duration, difficulty, withMS, withCT, sourceMaterial }) {
+  const difficultyNote = {
+    easier:  'Aim for slightly below the toughest exam questions — accessible but still rigorous.',
+    harder:  'Aim for the hardest end of real IB exams — multi-step, demanding, discriminating.',
+    mixed:   'Include a range of difficulty: some accessible opening questions and some challenging final questions.',
+  }[difficulty] || '';
+
+  const msNote = withMS
+    ? 'After ALL questions, include a complete, detailed markscheme section with award points, acceptable answers, and indicative content as per IBO conventions.'
+    : 'Do NOT include a markscheme.';
+
+  const ctNote = withCT
+    ? 'Annotate each question with the IB command term used (e.g., [Command term: Evaluate]) in brackets after the question text.'
+    : '';
+
+  const sourceSection = sourceMaterial
+    ? `\n\nPAST PAPER MATERIAL (use this to calibrate style, vocabulary, and difficulty):\n\`\`\`\n${sourceMaterial.slice(0, 12000)}\n\`\`\``
+    : '\n\n(No past paper material provided — generate based on general IB curriculum knowledge for this subject.)';
+
+  return `Generate a ${subject} ${level} ${paper} practice exam.
+
+Specifications:
+- Subject: ${subject} (${level})
+- Paper: ${paper}
+- Number of questions: ${qCount}
+- Total marks: approximately ${Math.round(qCount * duration / qCount * 0.8)} marks spread across questions
+- Target duration: ${duration} minutes
+- Difficulty: ${difficultyNote}
+
+Formatting rules:
+- Number questions clearly (1, 2, 3…)
+- Include part letters for multi-part questions (a, b, c…)
+- Show marks in square brackets: [2]
+- Group questions thematically where appropriate
+- Use correct IB notation for the subject (e.g., units, significant figures, stimulus materials)
+${ctNote}
+
+Markscheme:
+${msNote}
+${sourceSection}`;
+}
+
+const SYSTEM_PROMPT = `You are an expert IB examiner with 15+ years of experience writing official International Baccalaureate exam papers across all subjects. You have deep knowledge of:
+- IB command terms and their precise meanings (define, explain, evaluate, discuss, analyse, etc.)
+- Mark allocation conventions and how marks map to expected response length/depth
+- The Assessment Objectives and how questions are designed to test them
+- Common student misconceptions and how to write discriminating questions
+- How to write markschemes that distinguish levels of understanding
+
+When generating exams:
+1. Match the exact register and style of official IB papers
+2. Use subject-specific vocabulary precisely
+3. Ensure mark allocations are realistic and internally consistent
+4. Include all required stimulus material (graphs, data, quotes, sources) described clearly in [brackets]
+5. For markschemes: use IB conventions — award marks with bullets, note "any two of the following", "max 2 marks", indicative content, etc.
+6. Never include answers in the question section
+7. Format cleanly with clear question numbering`;
+
+// ── Output helpers ─────────────────────────────────────────
+function showOutput(initial) {
+  placeholder.style.display = 'none';
+  outputEl.hidden = false;
+  outputEl.textContent = initial;
+  streamCursor.hidden = false;
+  outputEl.after(streamCursor); // ensure cursor is after output
+}
+
+function appendOutput(chunk) {
+  outputEl.textContent += chunk;
+  // Auto-scroll
+  outputWrap.scrollTop = outputWrap.scrollHeight;
+}
+
+function setGenerating(active) {
+  generateBtn.disabled = active;
+  if (active) {
+    generateLabel.textContent = 'Generating…';
+    generateIcon.textContent = '◌';
+    generateIcon.classList.add('spin');
+  } else {
+    generateLabel.textContent = 'Generate Exam';
+    generateIcon.textContent = '→';
+    generateIcon.classList.remove('spin');
+  }
+}
+
+// ── Copy / Print / Clear ───────────────────────────────────
+copyBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(outputEl.textContent);
+    copyBtn.textContent = 'Copied!';
+    setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+  } catch {
+    // Fallback
+    const r = document.createRange();
+    r.selectNode(outputEl);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(r);
+    document.execCommand('copy');
+    window.getSelection().removeAllRanges();
+  }
 });
 
-clearButton.addEventListener("click", () => {
-  pastPapersInput.value = "";
-  setOutput(PLACEHOLDER_OUTPUT);
+printBtn.addEventListener('click', () => window.print());
+
+clearOutputBtn.addEventListener('click', () => {
+  outputEl.textContent = '';
+  outputEl.hidden = true;
+  placeholder.style.display = '';
+  outputActions.style.display = 'none';
+  streamCursor.hidden = true;
 });
 
-setOutput(PLACEHOLDER_OUTPUT);
+// ── Utility ────────────────────────────────────────────────
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Sample IB text ─────────────────────────────────────────
+const SAMPLE_TEXT = `IB Biology HL Paper 2 — Sample Question
+
+1. The diagram below shows a section of a cell membrane. [diagram described]
+
+(a) Identify the molecule labelled X in the diagram. [1]
+
+(b) Explain how the fluid mosaic model describes the structure of cell membranes. [3]
+
+(c) Compare the process of active transport with facilitated diffusion. [4]
+
+MARKSCHEME
+
+1. (a) Award [1] for: phospholipid / glycolipid / cholesterol (depending on position)
+
+(b) Award [3 max]:
+• Phospholipids form a bilayer with hydrophobic tails facing inward;
+• Proteins are embedded in / span the bilayer (integral proteins) or attached to the surface (peripheral proteins);
+• Components are free to move laterally — hence "fluid";
+• Proteins and lipids are present in a mosaic pattern;
+• Glycoproteins / glycolipids present on outer surface;
+
+(c) Award [4 max]:
+Similarities (max 1 mark):
+• Both involve transport proteins / channel or carrier proteins;
+Differences:
+• Active transport moves substances against concentration gradient; facilitated diffusion moves with gradient;
+• Active transport requires ATP / energy; facilitated diffusion does not;
+• Active transport involves carrier proteins only; facilitated diffusion uses channel or carrier proteins;
+• Active transport can accumulate substances to high concentrations; facilitated diffusion cannot;`;
+

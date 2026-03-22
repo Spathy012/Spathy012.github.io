@@ -1,124 +1,221 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>IB Practice Exam Generator | ib-shafted.me</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <header class="site-header">
-      <div class="container">
-        <p class="eyebrow">ib-shafted.me</p>
-        <h1>IB Practice Exam Generator</h1>
-        <p class="subtitle">
-          Paste excerpts from past papers, choose your subject and level, and get
-          a fresh IB-style practice exam draft. A lightweight, local
-          pattern-learning engine studies your examples to shape the questions.
-        </p>
-      </div>
-    </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IB Shafted — Exam Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
 
-    <main class="container">
-      <section class="panel">
-        <h2>1) Add your past paper examples</h2>
-        <p class="helper">
-          Paste text from past papers below or upload multiple .txt files. The
-          local model learns phrasing and command terms from your examples, so
-          include as much subject- and level-specific material as you can.
-        </p>
-        <div class="input-group">
-          <label for="paper-files" class="file-label">
-            Upload .txt files
+  <!-- ── HEADER ─────────────────────────────────────────────── -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-main">IB</span>
+        <span class="logo-sub">SHAFTED</span>
+      </div>
+      <p class="tagline">AI-generated IB practice exams &amp; markschemes</p>
+    </div>
+  </header>
+
+  <!-- ── MAIN ───────────────────────────────────────────────── -->
+  <main class="container">
+
+    <!-- API Key notice -->
+    <div class="api-notice" id="apiNotice">
+      <div class="notice-icon">⚠</div>
+      <div>
+        <strong>Anthropic API key required.</strong>
+        This tool uses Claude AI to generate real IB-style questions.
+        <button class="btn-link" id="showKeyInput">Enter your key →</button>
+      </div>
+      <button class="notice-close" id="closeNotice" aria-label="Dismiss">✕</button>
+    </div>
+
+    <div class="api-key-row" id="apiKeyRow" style="display:none">
+      <label for="apiKey" class="sr-only">Anthropic API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-ant-…  (stored only in this session)" autocomplete="off" />
+      <button class="btn-secondary" id="saveKey">Save Key</button>
+    </div>
+
+    <!-- ── STEP 1 ─ Upload ────────────────────────────────────── -->
+    <section class="card" id="step1">
+      <div class="card-header">
+        <span class="step-num">01</span>
+        <h2>Past Paper Material</h2>
+      </div>
+      <p class="card-desc">
+        Paste or upload excerpts from IB past papers. The AI uses these to
+        match the exact style, command terms, and difficulty of your subject.
+      </p>
+
+      <div class="upload-zone" id="uploadZone" tabindex="0" role="button" aria-label="Drop .txt or .pdf files here or click to browse">
+        <div class="upload-icon">📄</div>
+        <p>Drop <strong>.txt</strong> files here or <span class="upload-link">click to browse</span></p>
+        <input type="file" id="fileInput" multiple accept=".txt" hidden />
+      </div>
+
+      <div class="or-divider"><span>or paste text directly</span></div>
+
+      <textarea
+        id="pasteArea"
+        rows="8"
+        placeholder="Paste past paper questions, mark schemes, or any IB material here…"
+      ></textarea>
+
+      <div class="text-actions">
+        <button class="btn-ghost" id="loadSample">Load sample IB material</button>
+        <button class="btn-ghost danger" id="clearAll">Clear all</button>
+      </div>
+
+      <div id="fileList" class="file-list" aria-live="polite"></div>
+    </section>
+
+    <!-- ── STEP 2 ─ Settings ─────────────────────────────────── -->
+    <section class="card" id="step2">
+      <div class="card-header">
+        <span class="step-num">02</span>
+        <h2>Exam Configuration</h2>
+      </div>
+
+      <div class="settings-grid">
+
+        <div class="field">
+          <label for="subject">Subject</label>
+          <select id="subject">
+            <optgroup label="Sciences">
+              <option value="Biology">Biology</option>
+              <option value="Chemistry">Chemistry</option>
+              <option value="Physics">Physics</option>
+              <option value="Environmental Systems & Societies">Environmental Systems &amp; Societies</option>
+              <option value="Computer Science">Computer Science</option>
+            </optgroup>
+            <optgroup label="Mathematics">
+              <option value="Mathematics: Analysis and Approaches">Mathematics AA</option>
+              <option value="Mathematics: Applications and Interpretation">Mathematics AI</option>
+            </optgroup>
+            <optgroup label="Humanities">
+              <option value="History">History</option>
+              <option value="Geography">Geography</option>
+              <option value="Economics">Economics</option>
+              <option value="Psychology">Psychology</option>
+              <option value="Business Management">Business Management</option>
+              <option value="Philosophy">Philosophy</option>
+            </optgroup>
+            <optgroup label="Languages">
+              <option value="English Language & Literature">English Lang &amp; Lit</option>
+              <option value="English Literature">English Literature</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="level">Level</label>
+          <select id="level">
+            <option value="HL">Higher Level (HL)</option>
+            <option value="SL">Standard Level (SL)</option>
+            <option value="MYP">MYP</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="paper">Paper</label>
+          <select id="paper">
+            <option value="Paper 1">Paper 1</option>
+            <option value="Paper 2">Paper 2</option>
+            <option value="Paper 3">Paper 3</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="questionCount">Questions</label>
+          <div class="stepper">
+            <button class="step-btn" id="decQ" aria-label="decrease">−</button>
+            <input type="number" id="questionCount" value="5" min="1" max="20" />
+            <button class="step-btn" id="incQ" aria-label="increase">+</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="duration">Duration (min)</label>
+          <div class="stepper">
+            <button class="step-btn" id="decD" aria-label="decrease">−</button>
+            <input type="number" id="duration" value="60" min="10" max="240" step="5" />
+            <button class="step-btn" id="incD" aria-label="increase">+</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="difficulty">Difficulty</label>
+          <select id="difficulty">
+            <option value="mixed">Mixed</option>
+            <option value="easier">Easier</option>
+            <option value="harder">Harder (exam-hard)</option>
+          </select>
+        </div>
+
+        <div class="field full-width">
+          <label class="checkbox-label">
+            <input type="checkbox" id="includeMarkscheme" checked />
+            <span class="checkbox-box"></span>
+            Include detailed markscheme
           </label>
-          <input id="paper-files" type="file" accept=".txt" multiple />
         </div>
-        <textarea
-          id="past-papers"
-          rows="12"
-          placeholder="Paste past paper excerpts here… (separate papers with a blank line)"
-        ></textarea>
-        <button class="secondary" id="load-sample" type="button">
-          Load sample IB-style excerpts
-        </button>
-      </section>
 
-      <section class="panel">
-        <h2>2) Choose your exam settings</h2>
-        <form id="exam-form">
-          <div class="grid">
-            <label>
-              Subject
-              <input
-                id="subject"
-                type="text"
-                name="subject"
-                placeholder="e.g. Biology, Economics"
-                required
-              />
-            </label>
-            <label>
-              Level
-              <select id="level" name="level" required>
-                <option value="IB DP SL">IB DP SL</option>
-                <option value="IB DP HL">IB DP HL</option>
-                <option value="IB MYP">IB MYP</option>
-                <option value="IB CP">IB CP</option>
-              </select>
-            </label>
-            <label>
-              Target duration (minutes)
-              <input id="duration" type="number" name="duration" min="30" value="90" />
-            </label>
-            <label>
-              Number of questions
-              <input
-                id="question-count"
-                type="number"
-                name="question-count"
-                min="4"
-                max="20"
-                value="10"
-              />
-            </label>
-          </div>
-          <button class="primary" type="submit">
-            Generate practice exam
-          </button>
-          <p class="helper subtle">
-            This is a draft generator meant to help you practise. Always verify
-            the accuracy of content and command term usage.
-          </p>
-        </form>
-      </section>
-
-      <section class="panel">
-        <div class="output-header">
-          <h2>3) Your generated exam</h2>
-          <div class="output-actions">
-            <button class="secondary" id="copy-exam" type="button">
-              Copy exam
-            </button>
-            <button class="secondary" id="clear-exam" type="button">
-              Clear
-            </button>
-          </div>
+        <div class="field full-width">
+          <label class="checkbox-label">
+            <input type="checkbox" id="includeCommandTerms" checked />
+            <span class="checkbox-box"></span>
+            Include IB command term annotations
+          </label>
         </div>
-        <pre id="exam-output" aria-live="polite">
-Your generated IB-style practice exam will appear here.
-        </pre>
-      </section>
-    </main>
 
-    <footer class="site-footer">
-      <div class="container">
-        <p>
-          Built for IB students on <strong>ib-shafted.me</strong>. Your text is
-          processed locally; nothing is uploaded or stored.
-        </p>
       </div>
-    </footer>
 
-    <script src="app.js"></script>
-  </body>
+      <button class="btn-primary" id="generateBtn">
+        <span id="generateLabel">Generate Exam</span>
+        <span class="btn-icon" id="generateIcon">→</span>
+      </button>
+    </section>
+
+    <!-- ── STEP 3 ─ Output ───────────────────────────────────── -->
+    <section class="card" id="step3">
+      <div class="card-header">
+        <span class="step-num">03</span>
+        <h2>Your Practice Exam</h2>
+        <div class="output-actions" id="outputActions" style="display:none">
+          <button class="btn-ghost" id="copyBtn">Copy</button>
+          <button class="btn-ghost" id="printBtn">Print / PDF</button>
+          <button class="btn-ghost danger" id="clearOutput">Clear</button>
+        </div>
+      </div>
+
+      <div id="outputWrap">
+        <div id="placeholder" class="output-placeholder">
+          <div class="placeholder-icon">📝</div>
+          <p>Your generated IB-style exam will appear here.</p>
+          <p class="placeholder-sub">Configure settings above and click Generate.</p>
+        </div>
+        <div id="output" class="output-content" aria-live="polite" hidden></div>
+        <div id="streamCursor" class="stream-cursor" hidden>▌</div>
+      </div>
+
+    </section>
+
+    <p class="disclaimer">
+      Generated content is for practice only. Always cross-reference with
+      official IB materials. This tool is not affiliated with the IBO.
+    </p>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>ib-shafted.me — Powered by Claude AI · Built for IB students</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
 </html>
