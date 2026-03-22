@@ -26,7 +26,6 @@ const STOP_WORDS = new Set([
   "that",
   "this",
   "from",
-  "into",
   "your",
   "their",
   "which",
@@ -44,7 +43,6 @@ const STOP_WORDS = new Set([
   "could",
   "would",
   "should",
-  "into",
   "over",
   "under",
   "between",
@@ -63,7 +61,6 @@ const STOP_WORDS = new Set([
   "then",
   "been",
   "being",
-  "your",
   "past",
   "paper",
   "papers",
@@ -240,9 +237,12 @@ const generateExam = ({ subject, level, duration, questionCount, rawText }) => {
     questions.push(sentences[sentenceIndex]);
   }
 
-  const commandTermMix = COMMAND_TERMS.map((term, index) =>
-    COMMAND_TERMS[(index + Math.floor(rng() * 4)) % COMMAND_TERMS.length],
+  const commandTermMix = Array.from({ length: safeQuestionCount }, () =>
+    pickRandom(COMMAND_TERMS, rng),
   );
+  const commandTermSummary = [...new Set(commandTermMix)]
+    .slice(0, 6)
+    .join(", ");
 
   const examLines = [];
   examLines.push("IB Practice Exam (Draft)");
@@ -250,7 +250,7 @@ const generateExam = ({ subject, level, duration, questionCount, rawText }) => {
   examLines.push(`Level: ${level}`);
   examLines.push(`Time allowed: ${duration} minutes`);
   examLines.push(`Generated from ${sentences.length} example sentences`);
-  examLines.push(`Command terms: ${commandTermMix.slice(0, 6).join(", ")}`);
+  examLines.push(`Command terms: ${commandTermSummary}`);
 
   const addSection = (title, startIndex, count, marksRange) => {
     if (count <= 0) {
@@ -261,11 +261,13 @@ const generateExam = ({ subject, level, duration, questionCount, rawText }) => {
     examLines.push("Answer all questions.");
     for (let i = 0; i < count; i += 1) {
       const questionIndex = startIndex + i + 1;
-      const term = pickRandom(COMMAND_TERMS, rng);
+      const term =
+        commandTermMix[questionIndex - 1] || pickRandom(COMMAND_TERMS, rng);
+      const sentence = questions[questionIndex - 1] || questions[0];
       examLines.push(
         createQuestion({
           index: questionIndex,
-          sentence: questions[questionIndex - 1],
+          sentence,
           subject,
           term,
           marksRange,
@@ -360,8 +362,16 @@ const copyToClipboardFallback = (text) => {
   textarea.value = text;
   document.body.appendChild(textarea);
   textarea.select();
-  document.execCommand("copy");
+  const success = document.execCommand("copy");
   document.body.removeChild(textarea);
+  return success;
+};
+
+const showCopySuccess = () => {
+  copyButton.textContent = "Copied!";
+  setTimeout(() => {
+    copyButton.textContent = "Copy exam";
+  }, 1500);
 };
 
 copyButton.addEventListener("click", () => {
@@ -370,14 +380,17 @@ copyButton.addEventListener("click", () => {
     return;
   }
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(text).then(() => {
-      copyButton.textContent = "Copied!";
-      setTimeout(() => {
-        copyButton.textContent = "Copy exam";
-      }, 1500);
+    navigator.clipboard.writeText(text).then(showCopySuccess).catch(() => {
+      const success = copyToClipboardFallback(text);
+      if (success) {
+        showCopySuccess();
+      }
     });
   } else {
-    copyToClipboardFallback(text);
+    const success = copyToClipboardFallback(text);
+    if (success) {
+      showCopySuccess();
+    }
   }
 });
 
