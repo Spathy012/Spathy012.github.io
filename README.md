@@ -2,8 +2,8 @@
 
 This GitHub Pages site powers **ib-shafted.me**, a lightweight IB-style exam
 generator. Students can paste excerpts from past papers, select a subject and
-level, and instantly receive a draft practice exam based on the language and
-command terms in their examples.
+level, and instantly receive a draft practice exam. A local pattern-learning
+engine adapts the language and command terms to match the examples provided.
 
 ## How it works
 - Paste multiple past paper excerpts (or upload `.txt` files).

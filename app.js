@@ -251,6 +251,9 @@ const generateExam = ({ subject, level, duration, questionCount, rawText }) => {
   examLines.push(`Time allowed: ${duration} minutes`);
   examLines.push(`Generated from ${sentences.length} example sentences`);
   examLines.push(`Command terms: ${commandTermSummary}`);
+  examLines.push(
+    "Generator: Local pattern-learning engine (keyword + command term extraction)",
+  );
 
   const addSection = (title, startIndex, count, marksRange) => {
     if (count <= 0) {
