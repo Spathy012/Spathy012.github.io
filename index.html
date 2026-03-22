@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IB Practice Exam Generator | ib-shafted.me</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container">
+        <p class="eyebrow">ib-shafted.me</p>
+        <h1>IB Practice Exam Generator</h1>
+        <p class="subtitle">
+          Paste excerpts from past papers, choose your subject and level, and get
+          a fresh practice exam draft in IB style. Generation happens locally in
+          your browser.
+        </p>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="panel">
+        <h2>1) Add your past paper examples</h2>
+        <p class="helper">
+          Paste text from past papers below or upload multiple .txt files. The
+          generator uses your examples to shape the language and command terms.
+        </p>
+        <div class="input-group">
+          <label for="paper-files" class="file-label">
+            Upload .txt files
+          </label>
+          <input id="paper-files" type="file" accept=".txt" multiple />
+        </div>
+        <textarea
+          id="past-papers"
+          rows="12"
+          placeholder="Paste past paper excerpts here… (separate papers with a blank line)"
+        ></textarea>
+        <button class="secondary" id="load-sample" type="button">
+          Load sample IB-style excerpts
+        </button>
+      </section>
+
+      <section class="panel">
+        <h2>2) Choose your exam settings</h2>
+        <form id="exam-form">
+          <div class="grid">
+            <label>
+              Subject
+              <input
+                id="subject"
+                type="text"
+                name="subject"
+                placeholder="e.g. Biology, Economics"
+                required
+              />
+            </label>
+            <label>
+              Level
+              <select id="level" name="level" required>
+                <option value="IB DP SL">IB DP SL</option>
+                <option value="IB DP HL">IB DP HL</option>
+                <option value="IB MYP">IB MYP</option>
+                <option value="IB CP">IB CP</option>
+              </select>
+            </label>
+            <label>
+              Target duration (minutes)
+              <input id="duration" type="number" name="duration" min="30" value="90" />
+            </label>
+            <label>
+              Number of questions
+              <input
+                id="question-count"
+                type="number"
+                name="question-count"
+                min="4"
+                max="20"
+                value="10"
+              />
+            </label>
+          </div>
+          <button class="primary" type="submit">
+            Generate practice exam
+          </button>
+          <p class="helper subtle">
+            This is a draft generator meant to help you practise. Always verify
+            the accuracy of content and command term usage.
+          </p>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="output-header">
+          <h2>3) Your generated exam</h2>
+          <div class="output-actions">
+            <button class="secondary" id="copy-exam" type="button">
+              Copy exam
+            </button>
+            <button class="secondary" id="clear-exam" type="button">
+              Clear
+            </button>
+          </div>
+        </div>
+        <pre id="exam-output" aria-live="polite">
+Your generated IB-style practice exam will appear here.
+        </pre>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">
+        <p>
+          Built for IB students on <strong>ib-shafted.me</strong>. Your text is
+          processed locally; nothing is uploaded or stored.
+        </p>
+      </div>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
