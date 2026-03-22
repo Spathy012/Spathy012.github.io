@@ -18,6 +18,12 @@ const COMMAND_TERMS = [
   "To what extent",
 ];
 
+const MIN_QUESTION_COUNT = 4;
+const MAX_QUESTION_COUNT = 20;
+const MAX_SENTENCE_LENGTH = 150;
+const PAST_PAPER_PLACEHOLDER =
+  "Paste past paper excerpts here… (separate papers with a blank line)";
+
 const STOP_WORDS = new Set([
   "the",
   "and",
@@ -146,7 +152,7 @@ const pickKeywords = (sentence, frequencyMap) => {
   return fallback.length ? fallback : ["the topic"];
 };
 
-const clipSentence = (sentence, maxLength = 150) => {
+const clipSentence = (sentence, maxLength = MAX_SENTENCE_LENGTH) => {
   if (sentence.length <= maxLength) {
     return sentence;
   }
@@ -219,10 +225,13 @@ const generateExam = ({ subject, level, duration, questionCount, rawText }) => {
   const rng = mulberry32(seed);
   const questions = [];
   const usedIndices = new Set();
-  const safeQuestionCount = Math.min(Math.max(questionCount, 4), 20);
+  const safeQuestionCount = Math.min(
+    Math.max(questionCount, MIN_QUESTION_COUNT),
+    MAX_QUESTION_COUNT,
+  );
   const paperOneCount = Math.min(
     safeQuestionCount,
-    Math.max(4, Math.round(safeQuestionCount * 0.6)),
+    Math.max(MIN_QUESTION_COUNT, Math.round(safeQuestionCount * 0.6)),
   );
   const paperTwoCount = Math.max(0, safeQuestionCount - paperOneCount);
 
@@ -399,4 +408,5 @@ clearButton.addEventListener("click", () => {
   setOutput(PLACEHOLDER_OUTPUT);
 });
 
+pastPapersInput.setAttribute("placeholder", PAST_PAPER_PLACEHOLDER);
 setOutput(PLACEHOLDER_OUTPUT);

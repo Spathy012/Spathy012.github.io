@@ -32,11 +32,7 @@
           </label>
           <input id="paper-files" type="file" accept=".txt" multiple />
         </div>
-        <textarea
-          id="past-papers"
-          rows="12"
-          placeholder="Paste past paper excerpts here… (separate papers with a blank line)"
-        ></textarea>
+        <textarea id="past-papers" rows="12"></textarea>
         <button class="secondary" id="load-sample" type="button">
           Load sample IB-style excerpts
         </button>
@@ -67,7 +63,14 @@
             </label>
             <label>
               Target duration (minutes)
-              <input id="duration" type="number" name="duration" min="30" value="90" />
+              <input
+                id="duration"
+                type="number"
+                name="duration"
+                min="30"
+                max="240"
+                value="90"
+              />
             </label>
             <label>
               Number of questions
